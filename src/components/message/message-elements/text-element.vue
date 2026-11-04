@@ -20,6 +20,7 @@ import MessageBubble from '../message-bubble'
 import { decodeText, escapeHTML } from '@/utils/decodeText'
 import { ALL_PROPS, ALL_SKILLS } from '@/sdk/card'
 import { SKILL_PINYIN as GUIMI_SKILLS, ATTR_PINYIN as GUIMI_PROPS } from '@/rules/guimi-d20/data'
+import { resolveRuleId } from '@/rules'
 
 // 两套规则的技能/属性名都做成可点击，长名优先匹配，避免「图书馆使用」被「图书馆」截断
 const dic = [
@@ -52,13 +53,15 @@ export default {
     contentList() {
       return decodeText(this.payload)
     },
-    // 当前群的规则：COC 用 d100 快捷投骰，诡秘 D20 用 d20
+    // 点击高亮词时该用哪套规则：群设置优先，自动时看自己的人物卡
     groupRule() {
       const conv = this.$store.state.conversation.currentConversation
       if (!conv || conv.type !== this.TIM.TYPES.CONV_GROUP) return 'coc7'
       const groupID = conv.conversationID.replace(/^GROUP/, '')
       const game = this.$store.state.game.list[groupID]
-      return (game && game.rule) || 'coc7'
+      const cards = (game && game.cards) || {}
+      const myCard = cards['o' + this.$store.state.user.userID]
+      return resolveRuleId({ groupRule: game && game.rule, cardRule: myCard && myCard.rule })
     }
   },
   methods: {

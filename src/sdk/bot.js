@@ -1,7 +1,7 @@
 import TIM from './index'
 import Vue from 'vue'
 import { _loadScript } from '../utils'
-import { getRule } from '../rules'
+import { getRule, resolveRuleId, RULE_AUTO } from '../rules'
 import { formatBonus } from '../rules/guimi-d20/resolver'
 
 // region 加载 骰子 相关库
@@ -56,6 +56,18 @@ export function handleMessage(bot, msg) {
   const exp = tokens.shift()
   const desc = tokens.join(' ')
 
+  // .规则 / .rule：查当前用的是哪套骰子规则，方便排查「切换了却没生效」
+  if (/^(规则|rule)$/i.test(body)) {
+    const card = currentCard(msg)
+    const setting = currentRuleSetting(msg)
+    const ruleId = resolveRuleId({ groupRule: setting, cardRule: card && card.rule })
+    const rule = getRule(ruleId)
+    const settingText = setting === RULE_AUTO ? '自动（按人物卡）' : `固定 ${getRule(setting).shortName}`
+    const cardText = card ? '你的人物卡：' + getRule(card.rule).shortName : '你还没有人物卡'
+    sendGroupMessage(bot, msg.to, `${senderName(msg)} 本团规则：${settingText}；${cardText}；实际按 ${rule.shortName}（${rule.dice}）结算`)
+    return
+  }
+
   try {
     const text = rollAndBuildText({ bot, msg, exp, desc })
     if (text) sendGroupMessage(bot, msg.to, text)
@@ -72,12 +84,12 @@ function currentCard(msg) {
   return game.cards['o' + msg.from] || null
 }
 
-// 群级规则（导入人物卡时记录），没有人物卡的玩家也按本团规则结算
-function currentRuleId(msg) {
+// 群级规则设置（auto / coc7 / guimi-d20），没有人物卡的玩家也按它结算
+function currentRuleSetting(msg) {
   const store = Vue.prototype.$store
-  if (!store) return 'coc7'
+  if (!store) return 'auto'
   const game = store.state.game.list[msg.to]
-  return (game && game.rule) || 'coc7'
+  return (game && game.rule) || 'auto'
 }
 
 // 昵称优先级：群名片 > 昵称 > userId
@@ -87,7 +99,8 @@ function senderName(msg) {
 
 function rollAndBuildText({ msg, exp, desc }) {
   const card = currentCard(msg)
-  const rule = getRule((card && card.rule) || currentRuleId(msg))
+  // 群设置优先（自动时看说话人的人物卡），都没有就 COC7
+  const rule = getRule(resolveRuleId({ groupRule: currentRuleSetting(msg), cardRule: card && card.rule }))
 
   if (rule.id === 'guimi-d20') {
     const text = handleGuimiD20({ msg, exp, desc, card })

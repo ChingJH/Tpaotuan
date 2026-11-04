@@ -110,6 +110,7 @@
 <script>
 import { mapState } from 'vuex'
 import { getRule } from '@/sdk/card'
+import { resolveRuleId } from '@/rules'
 
 export default {
   props: ['member'],
@@ -136,6 +137,13 @@ export default {
     },
     rule() {
       return getRule(this.ruleId)
+    },
+    // 快捷投骰按「本团实际会用的规则」发指令：群设置优先，自动时看这张卡
+    quickRuleId() {
+      return resolveRuleId({
+        groupRule: this.currentGame && this.currentGame.rule,
+        cardRule: this.currentCard && this.currentCard.rule
+      })
     },
     defenseRows() {
       const defense = this.currentCard.defense || {}
@@ -187,6 +195,13 @@ export default {
       ghost.innerText = command
       ghost.click()
     },
+    // 生成投骰指令：诡秘 D20 用 .rd20 技能 难度，COC 用 .d% 困难技能
+    rollCommand(name, { hard = '', difficulty = '' } = {}) {
+      if (this.quickRuleId === 'guimi-d20') {
+        return `.rd20 ${name}${difficulty !== '' ? ' ' + difficulty : ''}`
+      }
+      return `.d% ${hard}${name}`
+    },
     copy(text) {
       this.$copyText(text).then(() => {
         this.$store.commit('showMessage', { type: 'success', message: '复制成功' })
@@ -199,11 +214,11 @@ export default {
         return
       }
       const hard = col.label === '半值' ? '困难' : (col.label === '1/5值' ? '极难' : '')
-      this.sendRoll('.d% ' + hard + row.name)
+      this.sendRoll(this.rollCommand(row.name, { hard }))
     },
     onBasicClick(_, col) {
       if (col.label === '理智' || col.label === '幸运') {
-        this.sendRoll('.d% ' + col.label)
+        this.sendRoll(this.rollCommand(col.label))
       }
     },
     // 诡秘 D20：点名称/等级复制，点补正/加值按当前难度投骰
@@ -212,8 +227,8 @@ export default {
         this.copy(row.name)
         return
       }
-      const difficulty = this.difficulty ? ` ${this.difficulty}` : ''
-      this.sendRoll(`.rd20 ${row.name}${difficulty}`)
+      const difficulty = this.difficulty ? String(this.difficulty) : ''
+      this.sendRoll(this.rollCommand(row.name, { difficulty }))
     }
   }
 }

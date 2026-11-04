@@ -1,10 +1,11 @@
 import Vue from 'vue'
 import { enableBot, disableBot } from 'tim'
 import TIM from '@/sdk'
-import { isRuleId, DEFAULT_RULE_ID } from '@/rules'
+import { isRuleSetting, RULE_AUTO } from '@/rules'
 
 const gamePrototype = {
-  rule: DEFAULT_RULE_ID, // 本团的骰子规则：群设置里可切换，导入人物卡时也会同步
+  // 本团的骰子规则：auto（按每个人的人物卡） / coc7 / guimi-d20，群设置里可切换
+  rule: RULE_AUTO,
   currentTab: 'group', // 当前打开的 tab，默认是群信息 tab
   botEnabled: false, // 是否打开骰子开关
   logEnabled: false, // 是否打开日志记录开关
@@ -68,14 +69,14 @@ const game = {
       state.list[groupId].logs = getInitialSavedContent('log', groupId)
       state.list[groupId].cards = getInitialSavedObject('card', groupId)
       // 骰子规则是本团的长期设置，刷新后要还在
-      const savedRule = getInitialSavedValue('rule', groupId, DEFAULT_RULE_ID)
-      state.list[groupId].rule = isRuleId(savedRule) ? savedRule : DEFAULT_RULE_ID
+      const savedRule = getInitialSavedValue('rule', groupId, RULE_AUTO)
+      state.list[groupId].rule = isRuleSetting(savedRule) ? savedRule : RULE_AUTO
     },
     toggleBotEnabled(state, { groupId, enabled }) {
       _(groupId).botEnabled = enabled
     },
     setGameRule(state, { groupId, rule }) {
-      const next = isRuleId(rule) ? rule : DEFAULT_RULE_ID
+      const next = isRuleSetting(rule) ? rule : RULE_AUTO
       _(groupId).rule = next
       save('rule', groupId, next)
     },
@@ -183,6 +184,9 @@ const game = {
             context.dispatch('handleNoteUnread', msg.to)
           } else if (data.mtype === 'card') {
             context.commit('setUserCard', { groupId: msg.to, userId: data.mdata.userId, card: data.mdata.card })
+          } else if (data.mtype === 'rule') {
+            // 主持人切换骰子规则后广播给群成员，收到就本地生效
+            context.commit('setGameRule', { groupId: msg.to, rule: data.mdata && data.mdata.rule })
           } else if (data.mtype === 'scene') {
             context.commit('setScene', { groupId: msg.to, sceneUrl: data.mdata })
           }

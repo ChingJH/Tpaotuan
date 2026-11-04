@@ -67,6 +67,7 @@
 </template>
 <script>
 import { loadXlsx, parseCard, RULE_LIST, getRule } from '@/sdk/card'
+import { RULE_AUTO } from '@/rules'
 import { mapState } from 'vuex'
 
 export default {
@@ -74,10 +75,11 @@ export default {
   data() {
     const game = this.$store.state.game.list[this.groupId]
     const existed = game && game.cards ? game.cards['o' + this.memberId] : null
+    const groupRule = game && game.rule
     return {
       user: null,
-      // 默认跟随本团已选的骰子规则；没有就用该玩家旧卡的规则
-      ruleId: (game && game.rule) || (existed && existed.rule) || 'coc7',
+      // 默认：本团固定了规则就跟本团，否则跟该玩家的旧卡，再否则 COC
+      ruleId: (groupRule && groupRule !== RULE_AUTO ? groupRule : null) || (existed && existed.rule) || 'coc7',
       rules: RULE_LIST
     }
   },
@@ -162,15 +164,15 @@ export default {
     },
     onConfirm() {
       this.$store.commit('setUserCard', { groupId: this.groupId, userId: this.member.userID, card: this.user })
-      // 记录本团使用的规则，骰娘与快捷投骰都按它来（COC 用 d100，诡秘 D20 用 d20）
+      // 注意：这张卡用什么规则解析，和本团骰子怎么结算，是两件事。
+      // 本团规则由群设置决定（默认「自动」= 按每个人的人物卡），这里只提示不一致，不擅自改。
       const cardRule = this.user.rule || 'coc7'
       const game = this.$store.state.game.list[this.groupId]
-      const prevRule = game && game.rule
-      this.$store.commit('setGameRule', { groupId: this.groupId, rule: cardRule })
-      if (prevRule !== cardRule) {
+      const groupRule = game && game.rule
+      if (groupRule && groupRule !== RULE_AUTO && groupRule !== cardRule) {
         this.$store.commit('showMessage', {
-          type: 'success',
-          message: `已把本团骰子规则设为${this.rule.shortName}（${this.rule.dice}），可在群设置里修改`
+          type: 'warning',
+          message: `本团骰子规则固定为${getRule(groupRule).shortName}，这张卡是${this.rule.shortName}；想按人物卡结算请在群设置里改成「自动」`
         })
       }
       const message = this.tim.createCustomMessage({

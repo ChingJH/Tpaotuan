@@ -30,7 +30,13 @@ function loadModule(file) {
   const req = (p) => {
     if (!p.startsWith('.')) return require(p)
     const target = path.resolve(path.dirname(abs), p)
-    const withExt = fs.existsSync(target) ? target : `${target}.js`
+    let withExt = target
+    if (fs.existsSync(target)) {
+      // 目录要再进一层找 index.js
+      if (fs.statSync(target).isDirectory()) withExt = path.join(target, 'index.js')
+    } else {
+      withExt = `${target}.js`
+    }
     return loadModule(path.relative(ROOT, withExt))
   }
   new Function('exports', 'require', 'module', code)(mod.exports, req, mod)
@@ -144,6 +150,19 @@ check('聆听 roll=20 成功', resolveCoC7({ card: coc, skill: '聆听', roll: 2
 check('困难聆听 = 半值', resolveCoC7({ card: coc, skill: '困难聆听', roll: 10 }), '≤ 10 成功')
 check('极难聆听 = 1/5', resolveCoC7({ card: coc, skill: '极难聆听', roll: 4 }), '≤ 4 成功')
 check('理智检定读 san', resolveCoC7({ card: coc, skill: '理智', roll: 70 }), '> 60 失败')
+
+// ---------- 规则选择的优先级（群里切换骰子规则的依据） ----------
+const rules = loadModule('src/rules/index.js')
+console.log('\n=== 规则选择 ===')
+check('自动 + D20 卡', rules.resolveRuleId({ groupRule: 'auto', cardRule: 'guimi-d20' }), 'guimi-d20')
+check('自动 + COC 卡', rules.resolveRuleId({ groupRule: 'auto', cardRule: 'coc7' }), 'coc7')
+check('自动 + 没卡', rules.resolveRuleId({ groupRule: 'auto' }), 'coc7')
+check('固定 D20 覆盖 COC 卡', rules.resolveRuleId({ groupRule: 'guimi-d20', cardRule: 'coc7' }), 'guimi-d20')
+check('固定 COC 覆盖 D20 卡', rules.resolveRuleId({ groupRule: 'coc7', cardRule: 'guimi-d20' }), 'coc7')
+check('什么都没设置', rules.resolveRuleId({}), 'coc7')
+check('auto 是合法设置', rules.isRuleSetting('auto'), true)
+check('乱填的规则不合法', rules.isRuleSetting('dnd5e'), false)
+check('非法群设置被忽略、退回人物卡', rules.resolveRuleId({ groupRule: 'dnd5e', cardRule: 'guimi-d20' }), 'guimi-d20')
 
 console.log('')
 if (failed > 0) {
