@@ -5,7 +5,9 @@
     <!-- 骰子规则：决定骰娘用 d100 还是 d20 结算。切换后会广播给群成员，并记在本机 -->
     <div class="rule-row">
       <span class="rule-label">骰子规则</span>
-      <el-radio-group :value="currentGame.rule" size="mini" :disabled="botSwitchLoading" @change="onRuleChange">
+      <!-- 注意：el-radio-button 只会往 ElRadioGroup 发 input 事件，必须用 v-model；
+           用 :value + @change 的话 change 带的是群的旧值，点了等于没点 -->
+      <el-radio-group v-model="ruleModel" size="mini" :disabled="botSwitchLoading">
         <el-radio-button v-for="option in ruleOptions" :key="option.id" :label="option.id">{{ option.shortName }}</el-radio-button>
       </el-radio-group>
     </div>
@@ -43,6 +45,15 @@ export default {
     // 自动模式下，本机这个用户实际会用哪套规则
     effectiveRule() {
       return getRule(resolveRuleId({ groupRule: this.currentGame && this.currentGame.rule, cardRule: this.myCardRule }))
+    },
+    // el-radio-button 必须走 v-model：它靠给 ElRadioGroup 发 input 事件生效
+    ruleModel: {
+      get() {
+        return (this.currentGame && this.currentGame.rule) || RULE_AUTO
+      },
+      set(ruleId) {
+        this.onRuleChange(ruleId)
+      }
     },
     ruleTip() {
       if (this.currentGame && this.currentGame.rule === RULE_AUTO) {
