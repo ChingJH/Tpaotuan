@@ -47,7 +47,10 @@ jobs:
       - name: Add .nojekyll
         run: touch dist/.nojekyll
 
+      # enablement: Pages 还没开启时自动帮你开（重建仓库后不用再去设置页点一遍）
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
