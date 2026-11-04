@@ -93,7 +93,7 @@
         <div>
           <h3>分享给小程序</h3>
           <img :src="minacode" />
-          <img :src="getInviteQRCodeUrl()" />
+          <img v-if="groupQRCode" :src="groupQRCode" />
           <div class="desc">①微信扫描左边二维码打开【跑团IO】小程序<br />②在小程序登录页面扫描右边二维码，自动填充信息<br />③输入自己的QQ后登录即可自动进群</div>
         </div>
       </div>
@@ -103,6 +103,7 @@
 
 <script>
 import { mapState } from 'vuex'
+import QRCode from 'qrcode'
 import { generateShareSig, setBotAvatar } from 'tim'
 import CardImport from '../right-panels/widgets/card-import'
 import minacode from '../../../assets/image/minacode.jpg'
@@ -115,6 +116,7 @@ export default {
 
       inviteDialogShow: false, // 邀请面板
       minacode: minacode,
+      groupQRCode: '', // 本地生成的进群二维码（含密钥，不能发给第三方生成）
       importCardMemberID: null, // 当前正在导入人物卡的成员
     }
   },
@@ -135,6 +137,12 @@ export default {
     },
     isOwner() {
       return this.groupProfile.selfInfo.role === this.TIM.TYPES.GRP_MBR_ROLE_OWNER
+    },
+  },
+  watch: {
+    // 打开邀请面板时再生成二维码（异步）
+    inviteDialogShow(visible) {
+      if (visible) this.buildInviteQRCode()
     },
   },
   methods: {
@@ -166,12 +174,26 @@ export default {
       // 精确判断是自己群的机器人，以防万一其他机器人乱入
       return this.groupProfile.groupID.replace('@TGS#', 'bot_') === member.userID
     },
-    getInviteQRCodeUrl() {
+    // 小程序扫码用的 payload（与原来格式一致），二维码改为浏览器本地生成，
+    // 不再把含密钥的 sig 发给第三方二维码服务
+    buildInviteQRCode() {
       const data = `${generateShareSig()}/${this.groupProfile.groupID.replace('@TGS#', '')}`
-      return 'https://api.pwmqr.com/qrcode/create/?url=' + data
+      QRCode.toDataURL(data, { width: 220, margin: 1 })
+        .then((url) => {
+          this.groupQRCode = url
+        })
+        .catch((e) => {
+          console.log('create qrcode error', e)
+        })
+    },
+    // 邀请链接要带上部署子路径（如 GitHub Pages 的 /Tpaotuan/）：
+    // 取当前地址去掉 # 之后的部分，再去掉末尾文件名，得到应用所在目录
+    getInviteLink() {
+      const base = location.href.split('#')[0].replace(/[^/]*$/, '')
+      return `${base}#/?s=${generateShareSig()}&g=${this.groupProfile.groupID.replace('@TGS#', '')}&d=`
     },
     copyInviteLink() {
-      this.$copyText(`${location.origin}/#/?s=${generateShareSig()}&g=${this.groupProfile.groupID.replace('@TGS#', '')}&d=\n点击链接加入群聊一起玩~`)
+      this.$copyText(`${this.getInviteLink()}\n点击链接加入群聊一起玩~`)
         .then(() => {
           this.$store.commit('showMessage', {
             type: 'success',
