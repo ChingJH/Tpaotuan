@@ -1,10 +1,7 @@
 # 跑团平台 · 诡秘 D20 定制版
 
-基于开源项目 [paotuan](https://paotuan.github.io/) 二次开发的个人部署版：纯前端、无后端，
+基于开源项目 [paotuan](https://paotuan.github.io/) 二次开发的个人部署版，
 构建产物可直接托管在 **GitHub Pages**。
-
-![纯前端](https://img.shields.io/badge/backend-none-brightgreen)
-![Vue 2](https://img.shields.io/badge/Vue-2.6-42b883)
 
 ---
 
