@@ -1,0 +1,18 @@
+.DS_Store
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 规则书与原始素材：本地参考用，不入库（规则书版权归原作者；原始卡表已放进 public/static）
+*.pdf
+26年9月*.xlsx
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

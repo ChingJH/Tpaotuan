@@ -1,0 +1,29 @@
+import { parseGuimiD20 } from './parser'
+import { resolveCheck, formatBonus } from './resolver'
+import { ATTR_PINYIN, SKILL_PINYIN, LEVEL_BONUS, LEVEL_ORDER } from './data'
+
+// 规则元信息：界面、导入、骰娘共用
+export default {
+  id: 'guimi-d20',
+  name: '诡秘之主 D20（3.5 共创版）',
+  shortName: '诡秘 D20',
+  dice: 'd20',
+  template: './static/guimi-d20.xlsx',
+  templateFileName: 'guimi-d20.xlsx',
+  templateNote: '琉璃版诡秘规则角色卡 YM_v3.5.9.24',
+  props: ATTR_PINYIN,
+  skills: SKILL_PINYIN,
+  levelBonus: LEVEL_BONUS,
+  levelOrder: LEVEL_ORDER,
+  parse: parseGuimiD20,
+  resolve: resolveCheck,
+  formatBonus,
+  tips: [
+    '基础骰子：.rd20 → 投掷一个二十面骰（1-20）',
+    '带技能：.rd20 侦查 → 自动加算「关联属性 + 技能等级补正 + 神性补正」',
+    '带难度：.rd20 侦查 15 → 总数值 ≥15 判定成功',
+    '属性检定：.rd20 敏捷 → 只加属性值',
+    '伤害检定：.r 1d10 → 普通骰子表达式照常可用',
+    '大成功 / 大失败只看 d20 本身：20 为大成功，1 为大失败'
+  ]
+}

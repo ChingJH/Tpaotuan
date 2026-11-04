@@ -1,0 +1,12 @@
+# 统一换行符，避免 Windows 提交时把 LF 改成 CRLF（yaml / js 在 CI 里更安全）
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
