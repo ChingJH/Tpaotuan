@@ -1,9 +1,10 @@
 import Vue from 'vue'
 import { enableBot, disableBot } from 'tim'
 import TIM from '@/sdk'
+import { isRuleId, DEFAULT_RULE_ID } from '@/rules'
 
 const gamePrototype = {
-  rule: 'coc7', // 本团的规则（导入人物卡时更新），决定骰娘用 d100 还是 d20 结算
+  rule: DEFAULT_RULE_ID, // 本团的骰子规则：群设置里可切换，导入人物卡时也会同步
   currentTab: 'group', // 当前打开的 tab，默认是群信息 tab
   botEnabled: false, // 是否打开骰子开关
   logEnabled: false, // 是否打开日志记录开关
@@ -25,6 +26,18 @@ const _ = (groupId) => {
 
 const save = (key, groupId, content) => {
   localStorage.setItem(`paotuan${key}-${groupId}`, JSON.stringify(content))
+}
+
+// 单个值（字符串/数字/布尔）的持久化读取
+const getInitialSavedValue = (key, groupId, fallback) => {
+  const saved = localStorage.getItem(`paotuan${key}-${groupId}`)
+  if (saved === null) return fallback
+  try {
+    const parsed = JSON.parse(saved)
+    return parsed === null || parsed === undefined ? fallback : parsed
+  } catch (e) {
+    return fallback
+  }
 }
 
 const getInitialSavedContent = (key, groupId) => {
@@ -54,12 +67,17 @@ const game = {
       state.list[groupId].notes = getInitialSavedContent('note', groupId)
       state.list[groupId].logs = getInitialSavedContent('log', groupId)
       state.list[groupId].cards = getInitialSavedObject('card', groupId)
+      // 骰子规则是本团的长期设置，刷新后要还在
+      const savedRule = getInitialSavedValue('rule', groupId, DEFAULT_RULE_ID)
+      state.list[groupId].rule = isRuleId(savedRule) ? savedRule : DEFAULT_RULE_ID
     },
     toggleBotEnabled(state, { groupId, enabled }) {
       _(groupId).botEnabled = enabled
     },
     setGameRule(state, { groupId, rule }) {
-      _(groupId).rule = rule
+      const next = isRuleId(rule) ? rule : DEFAULT_RULE_ID
+      _(groupId).rule = next
+      save('rule', groupId, next)
     },
     toggleLogEnabled(state, { groupId, enabled }) {
       _(groupId).logEnabled = enabled

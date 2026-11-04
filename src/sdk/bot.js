@@ -103,10 +103,16 @@ function rollAndBuildText({ msg, exp, desc }) {
 }
 
 // ---------------------------- COC 7 版 ----------------------------
+// 只有百分骰才做 COC 判定；其它表达式（伤害骰等）只报结果
+const isPercentile = (exp) => /d(%|100)(?![0-9])/i.test(exp)
+
 function handleCoC7({ msg, exp, desc, card }) {
   const roll = new DiceRoll(exp)
-  const rule = getRule('coc7')
-  const resultText = card ? (rule.resolve({ card, skill: desc.split(/\s+/)[0], roll: roll.total }) || '') : ''
+  let resultText = ''
+  if (card && isPercentile(exp)) {
+    const rule = getRule('coc7')
+    resultText = rule.resolve({ card, skill: desc.split(/\s+/)[0], roll: roll.total }) || ''
+  }
   return `${senderName(msg)} 🎲 ${desc || ''} ${roll.output} ${resultText}`.replace(/\s+/g, ' ').trim()
 }
 
@@ -120,7 +126,9 @@ function handleGuimiD20({ msg, exp, desc, card }) {
   if (!isSingleD20) {
     // 伤害骰等普通表达式：照常投掷
     const roll = new DiceRoll(exp)
-    return `${senderName(msg)} 🎲 ${desc} ${roll.output}`.replace(/\s+/g, ' ').trim()
+    // 老玩家习惯用 .d% ，在 D20 团里给个提示，免得以为骰娘坏了
+    const hint = /d(%|100)(?![0-9])/i.test(exp) ? '（本团是诡秘 D20，检定请用 .rd20 技能 难度）' : ''
+    return `${senderName(msg)} 🎲 ${desc} ${roll.output}${hint}`.replace(/\s+/g, ' ').trim()
   }
 
   const rule = getRule('guimi-d20')

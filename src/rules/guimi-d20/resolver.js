@@ -20,7 +20,8 @@ export function resolveCheck({ card, name, nat, difficulty }) {
     base = { attr: name, level: '属性检定', levelBonus: 0, customBonus: 0, value }
   } else {
     const skill = card.skills && card.skills[name]
-    if (!skill) return null
+    // COC 的人物卡技能是纯数字，不能拿来算 D20 加值（规则没切对时会走到这里）
+    if (!skill || typeof skill !== 'object' || skill.value === undefined) return null
     base = skill
   }
 

@@ -72,9 +72,12 @@ import { mapState } from 'vuex'
 export default {
   props: ['groupId', 'memberId', 'visible'],
   data() {
+    const game = this.$store.state.game.list[this.groupId]
+    const existed = game && game.cards ? game.cards['o' + this.memberId] : null
     return {
       user: null,
-      ruleId: 'coc7',
+      // 默认跟随本团已选的骰子规则；没有就用该玩家旧卡的规则
+      ruleId: (game && game.rule) || (existed && existed.rule) || 'coc7',
       rules: RULE_LIST
     }
   },
@@ -160,7 +163,16 @@ export default {
     onConfirm() {
       this.$store.commit('setUserCard', { groupId: this.groupId, userId: this.member.userID, card: this.user })
       // 记录本团使用的规则，骰娘与快捷投骰都按它来（COC 用 d100，诡秘 D20 用 d20）
-      this.$store.commit('setGameRule', { groupId: this.groupId, rule: this.user.rule || 'coc7' })
+      const cardRule = this.user.rule || 'coc7'
+      const game = this.$store.state.game.list[this.groupId]
+      const prevRule = game && game.rule
+      this.$store.commit('setGameRule', { groupId: this.groupId, rule: cardRule })
+      if (prevRule !== cardRule) {
+        this.$store.commit('showMessage', {
+          type: 'success',
+          message: `已把本团骰子规则设为${this.rule.shortName}（${this.rule.dice}），可在群设置里修改`
+        })
+      }
       const message = this.tim.createCustomMessage({
         to: this.groupId,
         conversationType: this.TIM.TYPES.CONV_GROUP,
