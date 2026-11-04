@@ -33,6 +33,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 部署前先跑人物卡解析 / 骰娘结算自检，坏了就别发
+      - name: Self check
+        run: npm run test:rules
+
       - name: Build
         # webpack 4 在 Node 17+ 上要用 legacy provider 才能拿到 md4
         env:
