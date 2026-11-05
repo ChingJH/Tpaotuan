@@ -110,6 +110,14 @@ check('攀爬 8 + 11 < 21', nat10.text, '< 21 失败')
 const attr = resolveCheck({ card: guimi, name: '敏捷', nat: 12, difficulty: 15 })
 check('属性检定只加属性', [attr.total, attr.text], [17, '≥ 15 成功'])
 check('未知技能返回 null', resolveCheck({ card: guimi, name: '不存在的技能', nat: 10 }), null)
+
+// 规则书的手写加值写法：.rd20+6+2 —— 加值以玩家写的为准，不再叠加人物卡
+const manual = resolveCheck({ card: guimi, name: '攀爬', nat: 10, difficulty: 15, explicitBonus: 8 })
+check('手写加值 rd20+8', [manual.total, manual.text], [18, '≥ 15 成功'])
+const manualNoCard = resolveCheck({ card: null, name: '', nat: 12, difficulty: 15, explicitBonus: 5 })
+check('没有人物卡也能按手写加值判定', [manualNoCard.total, manualNoCard.text], [17, '≥ 15 成功'])
+const manualNeg = resolveCheck({ card: null, name: '', nat: 10, difficulty: 15, explicitBonus: -4 })
+check('负加值', [manualNeg.total, manualNeg.text], [6, '< 15 失败'])
 console.log(`  加值明细示例：${formatBonus(nat15)}`)
 
 // ================= COC 7 版 =================
@@ -163,6 +171,19 @@ check('什么都没设置', rules.resolveRuleId({}), 'coc7')
 check('auto 是合法设置', rules.isRuleSetting('auto'), true)
 check('乱填的规则不合法', rules.isRuleSetting('dnd5e'), false)
 check('非法群设置被忽略、退回人物卡', rules.resolveRuleId({ groupRule: 'dnd5e', cardRule: 'guimi-d20' }), 'guimi-d20')
+
+// ---------- 骰娘指令解析（.rd20 必须能识别成 d20） ----------
+const { splitCommand } = loadModule('src/rules/command.js')
+console.log('\n=== 指令解析 ===')
+check('.rd20 侦查 15', splitCommand('.rd20 侦查 15'), { exp: 'd20', desc: '侦查 15', body: 'd20 侦查 15' })
+check('.r d20 侦查', splitCommand('.r d20 侦查'), { exp: 'd20', desc: '侦查', body: 'd20 侦查' })
+check('.d20 侦查', splitCommand('.d20 侦查'), { exp: 'd20', desc: '侦查', body: 'd20 侦查' })
+check('中文句号 .rd20', splitCommand('。rd20 侦查'), { exp: 'd20', desc: '侦查', body: 'd20 侦查' })
+check('.r 2d6 伤害', splitCommand('.r 2d6 伤害'), { exp: '2d6', desc: '伤害', body: '2d6 伤害' })
+check('.d% 聆听', splitCommand('.d% 聆听'), { exp: 'd%', desc: '聆听', body: 'd% 聆听' })
+check('.rd20 单个技能', splitCommand('.rd20 攀爬'), { exp: 'd20', desc: '攀爬', body: 'd20 攀爬' })
+check('普通文字不响应', splitCommand('今天吃啥'), null)
+check('只有一个点', splitCommand('.'), null)
 
 console.log('')
 if (failed > 0) {

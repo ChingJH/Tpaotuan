@@ -21,7 +21,16 @@
               <div class="info">
                 <avatar :title=getGroupMemberAvatarText(member.role) :src="member.avatar" />
                 <div class="names">
-                  <div class="member-name text-ellipsis">{{ getShowUserNick(member) }}</div>
+                  <div class="member-name text-ellipsis">
+                    {{ getShowUserNick(member) }}
+                    <el-tag
+                        v-if="isAdminKp(member)"
+                        size="mini"
+                        type="warning"
+                        effect="plain"
+                        class="kp-tag"
+                    >主持人</el-tag>
+                  </div>
                   <div class="member-id">{{ getShowUserId(member) }}</div>
                 </div>
               </div>
@@ -35,7 +44,7 @@
                     circle
                     @click="openUserCard(member.userID)"
                 />
-                <el-dropdown v-if="isOwner" trigger="click" @command="handleDropdownCommand">
+                <el-dropdown v-if="canKp" trigger="click" @command="handleDropdownCommand">
                   <el-button class="action-btn" title="更多操作" icon="el-icon-more" size="mini" circle/>
                   <el-dropdown-menu slot="dropdown">
                     <el-dropdown-item
@@ -59,7 +68,14 @@
                       修改群名片
                     </el-dropdown-item>
                     <el-dropdown-item
-                        v-if="member.role !== 'Owner'"
+                        v-if="isOwner && member.role !== 'Owner' && !member.userID.startsWith('bot')"
+                        icon="el-icon-star-off"
+                        :command="`${isAdminKp(member) ? 'UnsetKp' : 'SetKp'}:${member.userID}`"
+                    >
+                      {{ isAdminKp(member) ? '取消主持人' : '设为主持人' }}
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                        v-if="isOwner && member.role !== 'Owner'"
                         icon="el-icon-delete"
                         style="color: #F56C6C"
                         :command="`Kick:${member.userID}`"
@@ -76,7 +92,7 @@
     </div>
     <!-- 人物卡导入 -->
     <card-import
-        v-if="isOwner"
+        v-if="canKp"
         :visible="!!importCardMemberID"
         :group-id="groupProfile.groupID"
         :member-id="importCardMemberID"
@@ -137,6 +153,16 @@ export default {
     },
     isOwner() {
       return this.groupProfile.selfInfo.role === this.TIM.TYPES.GRP_MBR_ROLE_OWNER
+    },
+    // 本团的额外主持人（root 指定的管理员）：userID => true
+    currentGame() {
+      return this.$store.state.game.list[this.groupProfile.groupID] || {}
+    },
+    adminKps() {
+      return (this.currentGame && this.currentGame.kps) || {}
+    },
+    canKp() {
+      return this.isOwner || !!this.adminKps[this.$store.state.user.userID]
     },
   },
   watch: {
@@ -278,6 +304,46 @@ export default {
             })
           })
     },
+    // 该成员是不是被 root 加进来的主持人
+    isAdminKp(member) {
+      return !!(member && this.adminKps[member.userID])
+    },
+    // root 增删额外主持人：本地生效 + 广播给全群
+    setKp(userID, enabled) {
+      const kps = { ...this.adminKps }
+      if (enabled) {
+        kps[userID] = true
+      } else {
+        delete kps[userID]
+      }
+      this.$store.commit('setGameKps', { groupId: this.groupProfile.groupID, kps })
+      this.broadcastKps(kps)
+      const member = this.members.find(m => m.userID === userID)
+      const name = member ? this.getShowUserNick(member) : userID
+      this.$store.commit('showMessage', {
+        type: 'success',
+        message: enabled ? `${name} 已设为主持人（可发笔记/图片，不能踢人）` : `${name} 的主持人权限已取消`
+      })
+    },
+    broadcastKps(kps) {
+      if (!this.tim || !this.TIM) return
+      const admins = Object.keys(kps)
+      const message = this.tim.createCustomMessage({
+        to: this.groupProfile.groupID,
+        conversationType: this.TIM.TYPES.CONV_GROUP,
+        priority: this.TIM.TYPES.MSG_PRIORITY_HIGH,
+        payload: {
+          data: JSON.stringify({ mtype: 'kps', mdata: { kps } }),
+          description: admins.length
+            ? `主持人调整了主持人名单：新增 ${admins.length} 位额外主持人`
+            : '主持人清空了额外主持人名单'
+        }
+      })
+      this.$store.commit('pushCurrentMessageList', message)
+      this.tim.sendMessage(message).catch(e => {
+        console.log('同步主持人名单失败', e)
+      })
+    },
     handleDropdownCommand(command) {
       const [action, userID] = command.split(':')
       switch (action) {
@@ -305,6 +371,12 @@ export default {
           }).catch(() => {
             /* cancel */
           })
+          break
+        case 'SetKp':
+          this.setKp(userID, true)
+          break
+        case 'UnsetKp':
+          this.setKp(userID, false)
           break
         case 'Kick': {
           const member = this.members.find(member => member.userID === userID)

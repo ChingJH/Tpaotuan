@@ -2,6 +2,7 @@ import TIM from './index'
 import Vue from 'vue'
 import { _loadScript } from '../utils'
 import { getRule, resolveRuleId, RULE_AUTO } from '../rules'
+import { splitCommand } from '../rules/command'
 import { formatBonus } from '../rules/guimi-d20/resolver'
 
 // region 加载 骰子 相关库
@@ -41,20 +42,11 @@ export function handleMessage(bot, msg) {
     // 只处理群消息
     return
   }
-  const msgstr = (msg.payload.text || '').trim()
-  if (!msgstr.startsWith('.') && !msgstr.startsWith('。')) return
-
-  // 去掉开头的「.」，并兼容 .r / .rd20 这类带 r 前缀的写法
-  let body = msgstr.substr(1).trim()
-  if (/^r(\s|$)/i.test(body)) {
-    body = body.replace(/^r/i, '').trim()
-  }
-  if (!body) return
-
-  // 第一个词是骰子表达式，其余是描述（可能包含技能名与难度）
-  const tokens = body.split(/\s+/)
-  const exp = tokens.shift()
-  const desc = tokens.join(' ')
+  // 去掉开头的「.」/「。」，并兼容 .r / .r 1d10 / .rd20 这类带 r 前缀的写法
+  const parsed = splitCommand(msg.payload.text)
+  if (!parsed) return
+  const { exp, desc } = parsed
+  const body = parsed.body
 
   // .规则 / .rule：查当前用的是哪套骰子规则，方便排查「切换了却没生效」
   if (/^(规则|rule)$/i.test(body)) {
@@ -134,7 +126,10 @@ function handleCoC7({ msg, exp, desc, card }) {
 // 大成功 / 大失败只看 d20 本身
 function handleGuimiD20({ msg, exp, desc, card }) {
   const expr = exp.toLowerCase()
-  const isSingleD20 = /^1?d20$/.test(expr)
+  // 支持规则书的写法：d20 / 1d20 / d20+6 / d20+6+2（手写加值）
+  const m = /^(?:1?d20)((?:[+-]\d+)+)?$/.exec(expr)
+  const isSingleD20 = !!m
+  const explicitBonus = m && m[1] ? m[1].match(/[+-]\d+/g).reduce((sum, s) => sum + Number(s), 0) : null
 
   if (!isSingleD20) {
     // 伤害骰等普通表达式：照常投掷
@@ -148,20 +143,23 @@ function handleGuimiD20({ msg, exp, desc, card }) {
   const nat = new DiceRoll('d20').total
   const { name, difficulty, rest } = parseCheckName(card, desc)
 
-  if (!card || !name) {
-    // 没有人物卡或没写技能名：只报 d20 结果
-    const extra = nat === 20 ? '大成功' : (nat === 1 ? '大失败' : '')
-    return `${senderName(msg)} 🎲 ${desc} d20[${nat}] ${extra}`.replace(/\s+/g, ' ').trim()
-  }
+  // 有手写加值时按手写结算，没写才按人物卡算
+  const detail = rule.resolve({ card, name, nat, difficulty, explicitBonus })
 
-  const detail = rule.resolve({ card, name, nat, difficulty })
   if (!detail) {
+    // 没有人物卡、也没写技能名、也没手写加值：只报 d20 结果；给了难度还是判一下
     const extra = nat === 20 ? '大成功' : (nat === 1 ? '大失败' : '')
-    return `${senderName(msg)} 🎲 ${desc} d20[${nat}] ${extra}`.replace(/\s+/g, ' ').trim()
+    let tail = extra
+    if (!extra && difficulty !== null) {
+      tail = nat >= Number(difficulty) ? `≥ ${difficulty} 成功` : `< ${difficulty} 失败`
+    }
+    const shown = difficulty !== null ? `${desc}` : desc
+    return `${senderName(msg)} 🎲 ${shown} d20[${nat}] ${tail}`.replace(/\s+/g, ' ').trim()
   }
 
   const bonus = formatBonus(detail)
-  const label = `${name}${difficulty !== null ? ` 难度${difficulty}` : ''}${rest ? ` ${rest}` : ''}`
+  const nameText = detail.label || name || ''
+  const label = `${nameText}${difficulty !== null ? ` 难度${difficulty}` : ''}${rest ? ` ${rest}` : ''}`.trim()
   const calc = `d20[${nat}]${bonus ? ` + ${bonus}` : ''} = ${detail.total}`
   return `${senderName(msg)} 🎲 ${label} ${calc} ${detail.text}`.replace(/\s+/g, ' ').trim()
 }

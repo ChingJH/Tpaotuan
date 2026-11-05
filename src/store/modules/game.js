@@ -12,6 +12,8 @@ const gamePrototype = {
   logs: [], // id\from\nick\time\content 不记录全部的 tim msg 属性
   bgm: {}, // platform\type\id 平台、类型（单曲、专辑）、歌曲 id
   notes: [], // id\type\payload 主持人笔记
+  myNotes: {}, // userID => [{ id, text, time }] 玩家自己的笔记，只存本机
+  kps: {}, // userID => true，被 root 主持人加进来、权限等同 KP 的管理员
   noteUnread: false, // 是否有未读的笔记
   cards: {}, // 人物卡。 userID => 人物卡信息
   openedCards: ['group', 'note', 'log'], // 当前打开的所有 tab ['group', 'note', 'log', 群员ID]
@@ -68,6 +70,8 @@ const game = {
       state.list[groupId].notes = getInitialSavedContent('note', groupId)
       state.list[groupId].logs = getInitialSavedContent('log', groupId)
       state.list[groupId].cards = getInitialSavedObject('card', groupId)
+      state.list[groupId].myNotes = getInitialSavedObject('mynote', groupId)
+      state.list[groupId].kps = getInitialSavedObject('kps', groupId)
       // 骰子规则是本团的长期设置，刷新后要还在
       const savedRule = getInitialSavedValue('rule', groupId, RULE_AUTO)
       state.list[groupId].rule = isRuleSetting(savedRule) ? savedRule : RULE_AUTO
@@ -104,6 +108,16 @@ const game = {
     },
     setNoteUnread(state, { groupId, unread }) {
       _(groupId).noteUnread = unread
+    },
+    // 玩家自己的笔记：只写本机，不同步给别人
+    saveMyNotes(state, { groupId, userId, notes }) {
+      Vue.set(_(groupId).myNotes, userId, notes)
+      save('mynote', groupId, _(groupId).myNotes)
+    },
+    // 额外主持人列表（被 root 指定的管理员）
+    setGameKps(state, { groupId, kps }) {
+      _(groupId).kps = kps && typeof kps === 'object' ? kps : {}
+      save('kps', groupId, _(groupId).kps)
     },
     setCurrentTab(state, { groupId, tab }) {
       _(groupId).currentTab = tab
@@ -187,6 +201,9 @@ const game = {
           } else if (data.mtype === 'rule') {
             // 主持人切换骰子规则后广播给群成员，收到就本地生效
             context.commit('setGameRule', { groupId: msg.to, rule: data.mdata && data.mdata.rule })
+          } else if (data.mtype === 'kps') {
+            // root 主持人在增减额外主持人，收到的客户端同步权限
+            context.commit('setGameKps', { groupId: msg.to, kps: data.mdata && data.mdata.kps })
           } else if (data.mtype === 'scene') {
             context.commit('setScene', { groupId: msg.to, sceneUrl: data.mdata })
           }

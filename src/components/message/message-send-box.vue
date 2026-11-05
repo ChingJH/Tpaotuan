@@ -33,7 +33,8 @@
         <div>在骰子表达式后面可以接上动作的描述，以增强指令的可读性，并可以与人物卡联动，例如 <span>.d% 聆听</span> 。</div>
         <div>若人物卡是《诡秘之主》D20 规则，骰娘会自动按 D20 检定结算：<span>.rd20</span> 投 1-20，
           <span>.rd20 侦查</span> 自动加算「关联属性 + 技能等级补正 + 神性补正」，
-          <span>.rd20 侦查 15</span> 判定总数值是否达到 15 难度（20 为大成功，1 为大失败）。</div>
+          <span>.rd20 侦查 15</span> 判定总数值是否达到 15 难度（20 为大成功，1 为大失败）。
+          也支持规则书原写法 <span>.rd20+6+2 攀爬 18</span>：加值以你手写的为准，不再叠加人物卡。</div>
       </div>
     </el-dialog>
 <!--    <el-dialog title="发自定义消息" :visible.sync="sendCustomDialogVisible" width="30%">-->

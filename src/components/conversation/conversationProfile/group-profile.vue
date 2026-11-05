@@ -188,7 +188,7 @@
                 @change='changeMuteStatus'>
         </el-switch>
       </div>
-      <div v-if="isOwner" class="info-item">
+      <div v-if="canKp" class="info-item">
         <div class="label">启用机器人</div>
         <bot-switch/>
       </div>
@@ -233,7 +233,7 @@
 <!--      </div>-->
     </div>
     <div class="action-btns">
-      <kp-actions v-if="isOwner"/>
+      <kp-actions v-if="canKp"/>
       <div>
         <div>
           <el-button type="text" @click="quitGroup">退出群组</el-button>
@@ -309,6 +309,17 @@ export default {
     },
     isAdmin() {
       return this.groupProfile.selfInfo.role === this.TIM.TYPES.GRP_MBR_ROLE_ADMIN
+    },
+    currentGame() {
+      return this.$store.state.game.list[this.groupProfile.groupID] || {}
+    },
+    // 被 root 指定的额外主持人（管理员）：权限与主持人一致，但不能踢人/解散群
+    isExtraKp() {
+      const kps = (this.currentGame && this.currentGame.kps) || {}
+      return !!kps[this.$store.state.user.userID]
+    },
+    canKp() {
+      return this.isOwner || this.isExtraKp
     },
     showDissmissGroup() {
       // 好友工作群不能解散
