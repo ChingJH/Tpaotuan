@@ -1,13 +1,35 @@
 <template>
   <div id="message-send-box-wrapper" class="background-blur" @drop="dropHandler">
     <div class="send-header-bar">
-      <el-popover placement="top" width="400" trigger="click">
-        <div class="emojis">
-          <div v-for="item in emojiName" class="emoji" :key="item" @click="chooseEmoji(item)">
-            <img :src="emojiUrl + emojiMap[item]" style="width:30px;height:30px" />
+      <el-popover placement="top" width="430" trigger="click">
+        <div class="emoji-panel">
+          <div class="emoji-body">
+            <!-- 1. TIM 原生表情 -->
+            <div v-if="emojiTab === 'tim'" class="emojis">
+              <div v-for="item in emojiName" class="emoji" :key="item" @click="chooseEmoji(item)">
+                <img :src="emojiUrl + emojiMap[item]" style="width:30px;height:30px" />
+              </div>
+            </div>
+            <!-- 2. Unicode Emoji -->
+            <div v-else-if="emojiTab === 'emoji'" class="emojis emoji-chars">
+              <span v-for="item in unicodeEmoji" :key="item" class="emoji-char" @click="appendEmojiText(item)">{{ item }}</span>
+            </div>
+            <!-- 3. 颜文字 -->
+            <div v-else class="emojis kaomojis">
+              <span v-for="(item, index) in kaomojiList" :key="index" class="kaomoji" @click="appendEmojiText(item)">{{ item }}</span>
+            </div>
+          </div>
+          <!-- 类似 QQ 的底部切换栏 -->
+          <div class="emoji-tabs">
+            <div
+                v-for="tab in emojiTabs"
+                :key="tab.key"
+                :class="['emoji-tab', { active: emojiTab === tab.key }]"
+                @click="emojiTab = tab.key"
+            >{{ tab.label }}</div>
           </div>
         </div>
-        <i class="iconfont icon-smile" slot="reference" title="发表情"></i>
+        <i class="iconfont icon-smile" slot="reference" title="表情 / Emoji / 颜文字"></i>
       </el-popover>
       <i class="iconfont icon-tupian" title="发图片" @click="handleSendImageClick"></i>
       <i class="el-icon-camera" title="发视频" @click="handleSendVideoClick"></i>
@@ -146,6 +168,7 @@
 import { mapGetters, mapState } from 'vuex'
 import { Dialog, Popover, Tooltip } from 'element-ui'
 import { emojiMap, emojiName, emojiUrl } from '@/utils/emojiMap'
+import { UNICODE_EMOJI, KAOMOJI } from '@/utils/emojiExtra'
 import GhostMessageSendBox from './ghost-message-send-box'
 
 export default {
@@ -179,6 +202,15 @@ export default {
       emojiMap: emojiMap,
       emojiName: emojiName,
       emojiUrl: emojiUrl,
+      // 表情面板三个分类：TIM 原生表情 / Unicode Emoji / 颜文字
+      emojiTab: 'tim',
+      emojiTabs: [
+        { key: 'tim', label: '表情' },
+        { key: 'emoji', label: 'Emoji' },
+        { key: 'kaomoji', label: '颜文字' }
+      ],
+      unicodeEmoji: UNICODE_EMOJI,
+      kaomojiList: KAOMOJI,
       showAtGroupMember: false,
       atUserID: '',
       focus: false
@@ -496,6 +528,10 @@ export default {
     chooseEmoji(item) {
       this.messageContent += item
     },
+    // Emoji / 颜文字直接当文本插入
+    appendEmojiText(text) {
+      this.messageContent += text
+    },
     handleSendImageClick() {
       this.$refs.imagePicker.click()
     },
@@ -596,6 +632,84 @@ export default {
   box-sizing: border-box;
   overflow: hidden;
   padding: 3px 20px 20px 20px;
+}
+
+.emoji-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.emoji-body {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.emoji-tabs {
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid #EBEEF5;
+  margin-top: 6px;
+  padding-top: 4px;
+}
+
+.emoji-tab {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  line-height: 26px;
+  color: #606266;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.emoji-tab:hover {
+  background-color: #F5F7FA;
+}
+
+.emoji-tab.active {
+  color: #409EFF;
+  font-weight: 600;
+  background-color: #ECF5FF;
+}
+
+.emoji-chars {
+  height: auto;
+  max-height: 220px;
+}
+
+.emoji-char {
+  display: inline-block;
+  font-size: 22px;
+  line-height: 34px;
+  width: 34px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.emoji-char:hover {
+  background-color: #F5F7FA;
+}
+
+.kaomojis {
+  height: auto;
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kaomoji {
+  font-size: 14px;
+  line-height: 26px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.kaomoji:hover {
+  background-color: #F5F7FA;
+  color: #409EFF;
 }
 
 .emojis {

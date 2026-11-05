@@ -129,8 +129,14 @@ class BotContext {
   }
 
   onKickedOut(e) {
-    // TODO 给用户提示
+    // 同一个群的骰娘账号是唯一的，另一个页面/设备登录会把本机踢下线
+    // 通知界面把「骰娘开」改回「关」，不然状态是假的
     console.log('sdk kick reason ' + e.data.type)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('paotuan-bot-kicked', {
+        detail: { groupId: this.groupId, type: e.data.type }
+      }))
+    }
   }
 
   onMessageReceived({ data: msglist }) {

@@ -19,6 +19,7 @@
       <div v-for="log in currentGame.logs" :key="log.id" class="log-item">
         <div>
           <i class="el-icon-rank handle"/>
+          <span v-if="log.kind" :class="['kind', log.kind]" :title="kindTitle(log.kind)">{{ kindLabel(log.kind) }}</span>
           <div :title="log.from" class="nick">{{ log.nick || log.from }}</div>
           <div :title="formatTime(log.time)" class="content">{{ log.content }}</div>
         </div>
@@ -74,6 +75,21 @@ export default {
     })
   },
   methods: {
+    // 日志类型标签：玩家 / 骰娘 / 主持 / 图片 / 文件
+    kindLabel(kind) {
+      const map = { player: '玩家', bot: '骰娘', kp: 'KP', image: '图片', file: '文件' }
+      return map[kind] || ''
+    },
+    kindTitle(kind) {
+      const map = {
+        player: '玩家发言',
+        bot: '骰娘回复（含骰子指令结果）',
+        kp: '主持人笔记 / 主持人操作',
+        image: '图片',
+        file: '文件'
+      }
+      return map[kind] || ''
+    },
     formatTime(time) {
       return getFullDate(new Date(time * 1000))
     },
@@ -187,6 +203,22 @@ export default {
   margin 0 5px
   font-size 14px
   flex-shrink 0
+}
+
+.kind {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+
+  &.player { color: #606266; background: #f2f3f5; border-color: #e4e7ed; }
+  &.bot { color: #8a5a00; background: #fdf6ec; border-color: #f5dab1; }
+  &.kp { color: #7b3fa0; background: #f5eefa; border-color: #e0cdf0; }
+  &.image { color: #1f6f8b; background: #eaf6fa; border-color: #c6e6f0; }
+  &.file { color: #1f6f8b; background: #eaf6fa; border-color: #c6e6f0; }
 }
 
 .content {

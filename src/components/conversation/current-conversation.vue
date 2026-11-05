@@ -1,14 +1,33 @@
 <template>
   <div class="current-conversation-wrapper scene-bg" :style="`background-image: url(${backgroundUrl})`">
-    <div class="current-conversation" @scroll="onScroll">
+    <div class="current-conversation" :class="{ 'full-width': !showConversationProfile }" @scroll="onScroll">
       <div class="header background-blur">
+        <!-- 收起/展开左侧会话列表 -->
+        <div
+            :class="['panel-toggle', 'left', { collapsed: leftCollapsed }]"
+            :title="leftCollapsed ? '展开左侧列表' : '收起左侧列表'"
+            @click="$emit('toggle-left')">
+          <i :class="leftCollapsed ? 'el-icon-s-unfold' : 'el-icon-s-fold'"/>
+        </div>
         <div class="name">{{ name }}</div>
-<!--        <div class="btn-more-info"-->
-<!--          :class="showConversationProfile ? '' : 'left-arrow'"-->
-<!--          @click="showMore"-->
-<!--          v-show="!currentConversation.conversationID.includes('SYSTEM')"-->
-<!--          title="查看详细信息">-->
-<!--        </div>-->
+        <!-- 骰娘 / 日志 状态指示（主持人可点） -->
+        <div class="status-chips" v-if="currentConversation.type === 'GROUP' && currentGame">
+          <span
+              :class="['chip', botOn ? 'on' : 'off']"
+              :title="botTitle"
+              @click="onClickBotChip">🤖 骰娘{{ botOn ? '开' : '关' }}</span>
+          <span
+              :class="['chip', logOn ? 'on' : 'off']"
+              :title="logTitle"
+              @click="onClickLogChip">📝 日志{{ logOn ? '开' : '关' }}</span>
+        </div>
+        <!-- 收起/展开右侧面板 -->
+        <div
+            :class="['panel-toggle', 'right', { collapsed: !showConversationProfile }]"
+            :title="showConversationProfile ? '收起右侧面板' : '展开右侧面板'"
+            @click="showConversationProfile = !showConversationProfile">
+          <i :class="showConversationProfile ? 'el-icon-s-unfold' : 'el-icon-s-fold'"/>
+        </div>
       </div>
       <div class="content scene-bg">
         <div class="message-list" ref="message-list" @scroll="this.onScroll">
@@ -46,6 +65,7 @@ import RightPanel from './right-panels'
 
 export default {
   name: 'CurrentConversation',
+  props: ['leftCollapsed'],
   components: {
     MessageSendBox,
     MessageItem,
@@ -58,7 +78,8 @@ export default {
       isShowScrollButtomTips: false,
       preScrollHeight: 0,
       showConversationProfile: true,
-      timeout: ''
+      timeout: '',
+      botAutoTried: {}, // 本机本次会话已经尝试过自动拉起骰娘的群
     }
   },
   computed: {
@@ -86,14 +107,46 @@ export default {
     },
     backgroundUrl() {
       return this.currentGame?.scene
+    },
+    isOwner() {
+      const selfInfo = this.groupProfile && this.groupProfile.selfInfo
+      return !!selfInfo && selfInfo.role === this.TIM.TYPES.GRP_MBR_ROLE_OWNER
+    },
+    isExtraKp() {
+      const kps = (this.currentGame && this.currentGame.kps) || {}
+      return !!kps[this.$store.state.user.userID]
+    },
+    // root 主持人 或 被加进来的主持人，都能控制骰娘与日志
+    canKp() {
+      return this.isOwner || this.isExtraKp
+    },
+    botOn() {
+      return !!(this.currentGame && this.currentGame.botEnabled)
+    },
+    logOn() {
+      return !!(this.currentGame && this.currentGame.logEnabled)
+    },
+    botTitle() {
+      if (!this.canKp) return '主持人控制：本机骰娘' + (this.botOn ? '已开启' : '未开启，需要主持人开启')
+      return this.botOn ? '骰娘已开启，点击关闭' : '骰娘未开启，点击开启'
+    },
+    logTitle() {
+      if (!this.canKp) return '主持人控制：日志记录' + (this.logOn ? '进行中' : '未开启')
+      return this.logOn
+          ? '正在记录日志（玩家发言 / 主持人笔记 / 骰子记录），点击关闭'
+          : '日志未开启，点击开始记录'
     }
   },
   mounted() {
     this.$bus.$on('image-loaded', this.onImageLoaded)
     this.$bus.$on('scroll-bottom', this.scrollMessageListToButtom)
+    window.addEventListener('paotuan-bot-kicked', this.onBotKicked)
     if (this.currentConversation.conversationID === '@TIM#SYSTEM') {
       return false
     }
+  },
+  beforeDestroy() {
+    window.removeEventListener('paotuan-bot-kicked', this.onBotKicked)
   },
   updated() {
     this.keepMessageListOnButtom()
@@ -115,9 +168,74 @@ export default {
       if (!next && this.currentUnreadCount > 0) {
         this.tim.setMessageRead({ conversationID: this.currentConversation.conversationID })
       }
+    },
+    // 切群时把上次开着的骰娘自动拉起来（刷新页面后骰娘不会「自己没了」）
+    'currentConversation.groupProfile.groupID': {
+      immediate: true,
+      handler(groupId) {
+        if (!groupId) return
+        this.$store.dispatch('initGame', groupId).then(() => this.autoEnableBot(groupId))
+      }
     }
   },
   methods: {
+    // 骰娘账号在别处登录了，本机这份就被踢了：状态同步成「关」
+    onBotKicked(event) {
+      const groupId = event && event.detail && event.detail.groupId
+      if (!groupId || groupId !== (this.groupProfile && this.groupProfile.groupID)) return
+      this.$store.commit('toggleBotEnabled', { groupId, enabled: false })
+      this.$store.commit('showMessage', {
+        message: '骰娘已被另一个页面接管，本机这份已退出',
+        type: 'warning'
+      })
+    },
+    // 骰娘跑在本机：上次开着、这次进群就自动重连一次，失败了就把开关关回去
+    autoEnableBot(groupId) {
+      const game = this.$store.state.game.list[groupId]
+      if (!game || !game.botEnabled) return
+      if (this.botAutoTried[groupId]) return
+      this.botAutoTried[groupId] = true
+      if (!this.canKp) return // 非主持人不开，避免和主持人的骰娘抢同一个账号
+      this.$store.dispatch('toggleBotEnabled', { groupId, enabled: true }).catch(error => {
+        this.$store.commit('toggleBotEnabled', { groupId, enabled: false })
+        this.$store.commit('showMessage', {
+          message: '骰娘自动重连失败：' + ((error && error.message) || '网络异常'),
+          type: 'error'
+        })
+      })
+    },
+    onClickBotChip() {
+      if (!this.canKp) {
+        this.$store.commit('showMessage', { message: '只有主持人可以开关骰娘', type: 'warning' })
+        return
+      }
+      const groupId = this.currentConversation.groupProfile.groupID
+      const enabled = !this.botOn
+      this.$store.dispatch('toggleBotEnabled', { groupId, enabled }).then(() => {
+        this.$store.commit('showMessage', {
+          message: enabled ? '骰娘已开启，群里发 .gm 试试' : '骰娘已关闭',
+          type: 'success'
+        })
+      }).catch(error => {
+        this.$store.commit('showMessage', {
+          message: '骰娘开关失败：' + ((error && error.message) || '网络异常'),
+          type: 'error'
+        })
+      })
+    },
+    onClickLogChip() {
+      if (!this.canKp) {
+        this.$store.commit('showMessage', { message: '只有主持人可以开关日志记录', type: 'warning' })
+        return
+      }
+      const groupId = this.currentConversation.groupProfile.groupID
+      const enabled = !this.logOn
+      this.$store.commit('toggleLogEnabled', { groupId, enabled })
+      this.$store.commit('showMessage', {
+        message: enabled ? '开始记录日志（玩家 / 笔记 / 骰子）' : '已停止记录日志',
+        type: 'success'
+      })
+    },
     onScroll({ target: { scrollTop } }) {
       let messageListNode = this.$refs['message-list']
       if (!messageListNode) {
@@ -178,6 +296,9 @@ export default {
     flex-direction: column;
     width: 65%;
     height: $height;
+    transition width .2s
+    &.full-width
+      width 100%
   .profile
     height: $height;
     overflow hidden
@@ -199,13 +320,59 @@ export default {
   border-bottom 1px solid $border-base
   height 50px
   position relative
+  display flex
+  align-items center
   .name
-    padding 0 20px
+    flex 1
+    overflow hidden
+    white-space nowrap
+    text-overflow ellipsis
+    padding 0 12px
     color $base
     font-size 18px
     font-weight bold
     line-height 50px
     text-shadow $font-dark 0 0 0.1em
+  /* 两侧面板的收起/展开按钮 */
+  .panel-toggle
+    width 30px
+    height 50px
+    line-height 50px
+    text-align center
+    flex-shrink 0
+    cursor pointer
+    color $secondary
+    transition color .15s
+    &:hover
+      color $primary
+    i
+      font-size 18px
+    &.left
+      padding-left 4px
+    &.right
+      padding-right 4px
+  .status-chips
+    display flex
+    align-items center
+    flex-shrink 0
+    .chip
+      font-size 12px
+      line-height 20px
+      padding 0 8px
+      margin-left 6px
+      border-radius 10px
+      border 1px solid transparent
+      white-space nowrap
+      user-select none
+      cursor default
+      &.on
+        color #1f8f4a
+        background #e8f7ee
+        border-color #b7e4c7
+      &.off
+        color #909399
+        background #f2f3f5
+        border-color #e4e7ed
   .btn-more-info
     position absolute
     top 10px

@@ -236,6 +236,39 @@ check('非法/未知字段被丢弃', [bad.halfMad, bad.showBonusDetail, bad.tmp
 check('模板渲染', diceSettings.renderTemplate('d20({nat}) = {total}{result}', { nat: 7, total: 12, result: ' ok' }), 'd20(7) = 12 ok')
 check('未知占位符原样保留', diceSettings.renderTemplate('{foo}', {}), '{foo}')
 
+console.log('\n=== 日志记录 ===')
+const logEntry = loadModule('src/utils/log-entry.js')
+const LOG_TYPES = {
+  group: 'GROUP',
+  text: 'TIMTextElem',
+  image: 'TIMImageElem',
+  file: 'TIMFileElem',
+  custom: 'TIMCustomElem',
+  high: 'High'
+}
+const groupMsg = (extra) => ({
+  ID: 'm1', conversationType: 'GROUP', type: 'TIMTextElem', from: 'u1', nick: '张三', time: 100, ...extra
+})
+check('玩家发言', logEntry.buildLogEntry(groupMsg({ payload: { text: '我推门' } }), LOG_TYPES),
+    { id: 'm1', from: 'u1', nick: '张三', time: 100, content: '我推门', kind: 'player' })
+check('骰子指令也进日志', logEntry.buildLogEntry(groupMsg({ payload: { text: '.gm 格斗' } }), LOG_TYPES).content, '.gm 格斗')
+check('骰娘回复识别', logEntry.buildLogEntry(groupMsg({ from: 'bot_abc', payload: { text: 'd20(15) = 26' } }), LOG_TYPES).kind, 'bot')
+check('主持人笔记（高优先级文本）', logEntry.buildLogEntry(groupMsg({ priority: 'High', payload: { text: '书桌下有暗格' } }), LOG_TYPES),
+    { id: 'm1', from: 'u1', nick: '张三', time: 100, content: '【笔记】书桌下有暗格', kind: 'kp' })
+check('笔记图片', logEntry.buildLogEntry(groupMsg({ type: 'TIMImageElem', priority: 'High', payload: {} }), LOG_TYPES).content, '【笔记】[图片]')
+check('普通图片', logEntry.buildLogEntry(groupMsg({ type: 'TIMImageElem', payload: {} }), LOG_TYPES).kind, 'image')
+check('文件', logEntry.buildLogEntry(groupMsg({ type: 'TIMFileElem', payload: { fileName: '线索.pdf' } }), LOG_TYPES).content, '[文件] 线索.pdf')
+check('自定义笔记消息', logEntry.buildLogEntry(groupMsg({ type: 'TIMCustomElem', payload: { data: JSON.stringify({ mtype: 'note' }) } }), LOG_TYPES),
+    { id: 'm1', from: 'u1', nick: '张三', time: 100, content: '【笔记】主持人更新了重要笔记', kind: 'kp' })
+check('改规则记录成人话', logEntry.buildLogEntry(groupMsg({ type: 'TIMCustomElem', payload: { data: JSON.stringify({ mtype: 'rule', mdata: { rule: 'guimi-d20' } }) } }), LOG_TYPES).content, '【规则】骰子规则改为 诡秘 D20')
+check('灰条提示不记录', logEntry.buildLogEntry(groupMsg({ type: 'TIMCustomElem', payload: { data: JSON.stringify({ mtype: 'tip' }) } }), LOG_TYPES), null)
+check('私聊不记录', logEntry.buildLogEntry(groupMsg({ conversationType: 'C2C', payload: { text: 'hi' } }), LOG_TYPES), null)
+check('空文本不记录', logEntry.buildLogEntry(groupMsg({ payload: { text: '   ' } }), LOG_TYPES), null)
+check('自己发的消息补昵称', logEntry.buildLogEntry(
+    groupMsg({ from: '', nick: '', flow: 'out', payload: { text: '我搜抽屉' } }),
+    LOG_TYPES, { selfFrom: 'me', selfNick: '主持人' }),
+    { id: 'm1', from: 'me', nick: '主持人', time: 100, content: '我搜抽屉', kind: 'player' })
+
 console.log('')
 if (failed > 0) {
   console.log(`✗ 有 ${failed} 项断言失败`)

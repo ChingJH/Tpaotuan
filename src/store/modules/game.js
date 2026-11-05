@@ -2,6 +2,7 @@ import Vue from 'vue'
 import { enableBot, disableBot } from 'tim'
 import TIM from '@/sdk'
 import { isRuleSetting, RULE_AUTO } from '@/rules'
+import { buildLogEntry } from '@/utils/log-entry'
 
 const gamePrototype = {
   // 本团的骰子规则：auto（按每个人的人物卡） / coc7 / guimi-d20，群设置里可切换
@@ -77,9 +78,13 @@ const game = {
       // 骰子规则是本团的长期设置，刷新后要还在
       const savedRule = getInitialSavedValue('rule', groupId, RULE_AUTO)
       state.list[groupId].rule = isRuleSetting(savedRule) ? savedRule : RULE_AUTO
+      // 骰娘 / 日志开关同样要记住，不然一刷新就从「开」变「关」
+      state.list[groupId].botEnabled = getInitialSavedValue('bot', groupId, false) === true
+      state.list[groupId].logEnabled = getInitialSavedValue('logenabled', groupId, false) === true
     },
     toggleBotEnabled(state, { groupId, enabled }) {
       _(groupId).botEnabled = enabled
+      save('bot', groupId, !!enabled)
     },
     setGameRule(state, { groupId, rule }) {
       const next = isRuleSetting(rule) ? rule : RULE_AUTO
@@ -88,9 +93,16 @@ const game = {
     },
     toggleLogEnabled(state, { groupId, enabled }) {
       _(groupId).logEnabled = enabled
+      save('logenabled', groupId, !!enabled)
     },
     insertLog(state, { groupId, log }) {
       _(groupId).logs.push(log)
+      save('log', groupId, _(groupId).logs)
+    },
+    // 批量写入，一批只落一次 localStorage
+    appendLogs(state, { groupId, logs }) {
+      if (!logs || !logs.length) return
+      _(groupId).logs.push(...logs)
       save('log', groupId, _(groupId).logs)
     },
     updateLogs(state, { groupId, logs }) {
@@ -173,24 +185,35 @@ const game = {
             })
       }))
     },
+    // 日志记录：玩家发言、主持人笔记（含图片）、骰子指令与骰娘回复、主持人系统动作
     insertGameLogs(context, msglist) {
-      msglist.filter(msg =>
-          msg.conversationType === TIM.TYPES.CONV_GROUP
-          && msg.type === TIM.TYPES.MSG_TEXT
-          && context.state.list[msg.to]
-          && context.state.list[msg.to].logEnabled
-      ).forEach(msg => {
-        const log = {
-          id: msg.ID,
-          from: msg.from,
-          nick: msg.nameCard || msg.nick,
-          time: msg.time,
-          content: msg.payload.text,
-        }
-        if (log.content.startsWith('.') || log.content.startsWith('。')) {
-          return // 这里默认过滤了骰子指令，后续可以考虑做成配置项
-        }
-        context.commit('insertLog', { groupId: msg.to, log })
+      if (!msglist || !msglist.length) return
+      const self = context.rootState.user.currentUserProfile || {}
+      const options = {
+        selfFrom: context.rootState.user.userID,
+        selfNick: self.nick || self.userID || ''
+      }
+      const types = {
+        group: TIM.TYPES.CONV_GROUP,
+        text: TIM.TYPES.MSG_TEXT,
+        image: TIM.TYPES.MSG_IMAGE,
+        file: TIM.TYPES.MSG_FILE,
+        custom: TIM.TYPES.MSG_CUSTOM,
+        high: TIM.TYPES.MSG_PRIORITY_HIGH
+      }
+      const byGroup = {}
+      msglist.forEach(msg => {
+        const game = context.state.list[msg.to]
+        if (!game || !game.logEnabled) return
+        const entry = buildLogEntry(msg, types, options)
+        if (!entry) return
+        if (game.logs.some(log => log.id === entry.id)) return // 翻历史消息时会重复收到
+        const pending = byGroup[msg.to] || []
+        if (pending.some(log => log.id === entry.id)) return
+        byGroup[msg.to] = pending.concat(entry)
+      })
+      Object.keys(byGroup).forEach(groupId => {
+        context.commit('appendLogs', { groupId, logs: byGroup[groupId] })
       })
     },
     handleKPNote(context, msglist) {

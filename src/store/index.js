@@ -10,7 +10,7 @@ import {Message} from 'element-ui'
 
 Vue.use(Vuex)
 
-export default new Vuex.Store({
+const store = new Vuex.Store({
   state: {
     current: Date.now(), // 当前时间
     intervalID: 0,
@@ -57,3 +57,16 @@ export default new Vuex.Store({
     game,
   }
 })
+
+// 自己发出的消息不会走「收到消息」那条路，日志里会缺自己说的话，
+// 所以在消息进入会话列表的统一入口上补一刀（收到的消息由 index.vue 负责，靠 id 去重）
+store.subscribe((mutation) => {
+  if (mutation.type !== 'pushCurrentMessageList') return
+  const list = Array.isArray(mutation.payload) ? mutation.payload : [mutation.payload]
+  const mine = list.filter(msg => msg && msg.flow === 'out')
+  if (!mine.length) return
+  store.dispatch('insertGameLogs', mine)
+})
+
+export default store
+
