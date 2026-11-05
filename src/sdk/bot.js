@@ -4,7 +4,7 @@ import { _loadScript } from '../utils'
 import { getRule, resolveRuleId } from '../rules'
 import { splitCommand } from '../rules/command'
 import { resolveCheck, formatBonus } from '../rules/guimi-d20/resolver'
-import { parseGmCommand, parseGmTarget, matchTarget, GM_HELP } from '../rules/guimi-d20/commands'
+import { parseGmCommand, parseGmTarget, matchTarget, attrGenCount, GM_HELP } from '../rules/guimi-d20/commands'
 import { normalizeDiceSettings, renderTemplate } from '../rules/guimi-d20/settings'
 
 // region 加载 骰子 相关库
@@ -75,7 +75,7 @@ function buildReply({ msg, body, exp, desc }) {
     if (ruleId !== 'guimi-d20') return null
     const count = Number(/^诡秘\s*(\d+)?/.exec(body)[1]) || 1
     if (!settings.allowAttrGen) return `${senderName(msg)} 主持人关闭了属性生成功能`
-    return genAttrs(count, senderName(msg))
+    return handleAttrGen(count, senderName(msg))
   }
 
   if (ruleId === 'guimi-d20') {
@@ -158,7 +158,7 @@ function handleGmCommand({ msg, gm, card, settings }) {
     case 'error':
       return gm.text
     case 'attr-gen':
-      return settings.allowAttrGen ? genAttrs(gm.count, senderName(msg)) : `${senderName(msg)} 主持人关闭了属性生成功能`
+      return settings.allowAttrGen ? handleAttrGen(gm.count, senderName(msg)) : `${senderName(msg)} 主持人关闭了属性生成功能`
     case 'init-list':
       return `${senderName(msg)} 本平台没有先攻列表，先攻请用 .gmri 投，结果自己记一下`
     case 'init-roll':
@@ -340,12 +340,17 @@ function handleInitRoll({ msg, card }) {
   return `<${senderName(msg)}> 先攻检定：rd20(${nat}) + 敏捷(${dex}) = ${nat + dex}`
 }
 
-// .诡秘 N —— 生成属性（每项 2d3，2~6）
+// .诡秘 N / .gm N —— 生成属性（每项 2d3，2~6）
 const ATTR_NAMES = ['力量', '体质', '敏捷', '魅力', '灵感', '意志', '教育', '幸运']
 
-function genAttrs(count, nick) {
-  const n = Math.max(1, Math.min(10, Number(count) || 1))
-  const out = [`<${nick}>命运的馈赠在暗处已标注好了价码：`]
+function handleAttrGen(count, nick) {
+  const result = attrGenCount(count)
+  if (result.error) return `${nick} ${result.error}`
+  return genAttrs(result.count, nick)
+}
+
+function genAttrs(n, nick) {
+  const out = [`<${nick}>命运的馈赠在暗处已标注好了价码：（属性生成 ×${n}，每项 2d3，2~6）`]
   for (let i = 0; i < n; i++) {
     const vals = ATTR_NAMES.map(() => rollDie(3) + rollDie(3))
     const block = []

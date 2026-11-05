@@ -33,11 +33,21 @@ export const GM_HELP = [
   '.gmsc [成功骰/失败骰]   理智检定（默认 1 / 1d2）',
   '.gmsn                   角色卡摘要（生命/灵性/敏捷/理智）',
   '.gmri                   先攻检定（d20 + 敏捷）',
-  '.gm 3 / .诡秘 3         生成 3 组属性（2d3）',
+  '.gm 3 / .诡秘 3         生成 3 组属性（每项 2d3，一次最多 10 组）',
   '.rd20 侦查 15           规则书原写法（等价于 .gm）',
   '.rd20+6+2 侦查 15       手写加值，不叠加人物卡',
   '骰子规则、加值文案、SC 阈值等由主持人（群主或主持人）在「骰娘设置」里改。'
 ].join('\n')
+
+export const MAX_ATTR_GEN = 10
+
+// 属性生成组数：夹到 1~10，超了要明确告诉玩家，别静默截断
+export function attrGenCount(value) {
+  const n = Math.floor(Number(value) || 1)
+  if (n < 1) return { count: 1, error: `组数至少 1 组（你写了 ${value}）` }
+  if (n > MAX_ATTR_GEN) return { count: MAX_ATTR_GEN, error: `一次最多生成 ${MAX_ATTR_GEN} 组（你写了 ${n} 组）` }
+  return { count: n, error: '' }
+}
 
 // 解析 .gm 命令族；body 是去掉开头「.」之后的整串（例如 "gm格斗+2"）
 export function parseGmCommand(body) {
