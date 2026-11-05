@@ -192,6 +192,13 @@
         <div class="label">启用机器人</div>
         <bot-switch/>
       </div>
+      <div v-if="isOwner" class="info-item">
+        <div class="label">
+          主持人名单
+          <i class="el-icon-refresh" title="后进群的人收不到之前的设置，点这里重新广播" @click="syncKps" style="cursor:pointer" />
+        </div>
+        <div class="long-content">{{ adminCount }} 位额外主持人（点右侧刷新同步给全群）</div>
+      </div>
       <div class="info-item">
         <div class="label">
           群公告
@@ -321,6 +328,9 @@ export default {
     canKp() {
       return this.isOwner || this.isExtraKp
     },
+    adminCount() {
+      return Object.keys((this.currentGame && this.currentGame.kps) || {}).length
+    },
     showDissmissGroup() {
       // 好友工作群不能解散
       return this.isOwner && this.groupProfile.type !== this.TIM.TYPES.GRP_WORK
@@ -341,6 +351,25 @@ export default {
     }
   },
   methods: {
+    // 把当前主持人名单重新广播一次（后进群的人之前没收到）
+    syncKps() {
+      if (!this.tim || !this.TIM) return
+      const kps = (this.currentGame && this.currentGame.kps) || {}
+      const message = this.tim.createCustomMessage({
+        to: this.groupProfile.groupID,
+        conversationType: this.TIM.TYPES.CONV_GROUP,
+        priority: this.TIM.TYPES.MSG_PRIORITY_HIGH,
+        payload: {
+          data: JSON.stringify({ mtype: 'kps', mdata: { kps } }),
+          description: '主持人同步了额外主持人名单'
+        }
+      })
+      this.$store.commit('pushCurrentMessageList', message)
+      this.tim.sendMessage(message).catch(e => {
+        console.log('同步主持人名单失败', e)
+      })
+      this.$store.commit('showMessage', { type: 'success', message: '已把主持人名单同步给群成员' })
+    },
     inputFocus(ref) {
       this.$nextTick(() => {
         this.$refs[ref].focus()
