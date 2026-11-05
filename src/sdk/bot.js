@@ -180,7 +180,8 @@ function handleGuimiCheck({ msg, rawTarget, mode, card, settings, explicitBonus,
   const target = parseGmTarget(rawTarget || '')
   const rollMode = mode || target.mode || 'normal'
   const useAdv = rollMode !== 'normal' && settings.allowAdvantage
-  const manualOff = !!(target.add && !settings.allowManualBonus)
+  const advOff = rollMode !== 'normal' && !settings.allowAdvantage
+  const manualOff = !!((target.add || target.absolute !== null) && !settings.allowManualBonus)
   const add = manualOff ? null : target.add
   const absolute = manualOff ? null : target.absolute
 
@@ -272,7 +273,8 @@ function handleGuimiCheck({ msg, rawTarget, mode, card, settings, explicitBonus,
     : ''
 
   const lines = [title, line, crit]
-  if (manualOff) lines.push('（主持人关闭了手动加值，本次已忽略 +N）')
+  if (advOff) lines.push('（主持人关闭了奖励投 / 惩罚投，本次按普通检定）')
+  if (manualOff) lines.push('（主持人关闭了手动加值 / 绝对指定，本次已忽略）')
   return lines.filter(v => v && String(v).trim()).join('\n')
 }
 
