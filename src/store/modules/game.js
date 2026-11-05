@@ -12,6 +12,7 @@ const gamePrototype = {
   logs: [], // id\from\nick\time\content 不记录全部的 tim msg 属性
   bgm: {}, // platform\type\id 平台、类型（单曲、专辑）、歌曲 id
   notes: [], // id\type\payload 主持人笔记
+  diceSettings: {}, // 骰娘自定义设置（文案/开关/SC 阈值），空表示用默认值
   myNotes: {}, // userID => [{ id, text, time }] 玩家自己的笔记，只存本机
   kps: {}, // userID => true，被 root 主持人加进来、权限等同 KP 的管理员
   noteUnread: false, // 是否有未读的笔记
@@ -72,6 +73,7 @@ const game = {
       state.list[groupId].cards = getInitialSavedObject('card', groupId)
       state.list[groupId].myNotes = getInitialSavedObject('mynote', groupId)
       state.list[groupId].kps = getInitialSavedObject('kps', groupId)
+      state.list[groupId].diceSettings = getInitialSavedObject('dice', groupId)
       // 骰子规则是本团的长期设置，刷新后要还在
       const savedRule = getInitialSavedValue('rule', groupId, RULE_AUTO)
       state.list[groupId].rule = isRuleSetting(savedRule) ? savedRule : RULE_AUTO
@@ -118,6 +120,11 @@ const game = {
     setGameKps(state, { groupId, kps }) {
       _(groupId).kps = kps && typeof kps === 'object' ? kps : {}
       save('kps', groupId, _(groupId).kps)
+    },
+    // 骰娘自定义设置（主持人改的那份）
+    setDiceSettings(state, { groupId, settings }) {
+      _(groupId).diceSettings = settings && typeof settings === 'object' ? settings : {}
+      save('dice', groupId, _(groupId).diceSettings)
     },
     setCurrentTab(state, { groupId, tab }) {
       _(groupId).currentTab = tab
@@ -204,6 +211,9 @@ const game = {
           } else if (data.mtype === 'kps') {
             // root 主持人在增减额外主持人，收到的客户端同步权限
             context.commit('setGameKps', { groupId: msg.to, kps: data.mdata && data.mdata.kps })
+          } else if (data.mtype === 'dice') {
+            // 主持人改了骰娘设置（文案/开关/阈值），收到就本地生效
+            context.commit('setDiceSettings', { groupId: msg.to, settings: data.mdata && data.mdata.settings })
           } else if (data.mtype === 'scene') {
             context.commit('setScene', { groupId: msg.to, sceneUrl: data.mdata })
           }

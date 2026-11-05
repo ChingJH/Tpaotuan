@@ -12,6 +12,10 @@
     <div>
       <el-button type="text" @click="$refs.noteImgPicker.click()">发布图片笔记</el-button>
     </div>
+    <div>
+      <el-button type="text" @click="diceSettingsVisible = true">骰娘设置</el-button>
+    </div>
+    <dice-settings :visible.sync="diceSettingsVisible"/>
     <input
         type="file"
         id="noteImgPicker"
@@ -68,9 +72,10 @@
 <script>
 import { mapState } from 'vuex'
 import ImageUpload from '../../../image-upload'
+import DiceSettings from './dice-settings'
 
 export default {
-  components: {ImageUpload},
+  components: {ImageUpload, DiceSettings},
   data() {
     const currentGame = this.$store.state.game.list[this.$store.state.conversation.currentConversation.groupProfile.groupID]
     return {
@@ -80,7 +85,8 @@ export default {
       textContent: '',
       setSceneVisible: false, // 设置场景弹窗
       sceneUrl: currentGame.scene, // 初始值读当前的场景 url
-      sceneTip: ''
+      sceneTip: '',
+      diceSettingsVisible: false // 骰娘设置弹窗
     }
   },
   computed: {

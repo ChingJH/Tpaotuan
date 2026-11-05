@@ -35,6 +35,11 @@
           <span>.rd20 侦查</span> 自动加算「关联属性 + 技能等级补正 + 神性补正」，
           <span>.rd20 侦查 15</span> 判定总数值是否达到 15 难度（20 为大成功，1 为大失败）。
           也支持规则书原写法 <span>.rd20+6+2 攀爬 18</span>：加值以你手写的为准，不再叠加人物卡。</div>
+        <div>习惯 Dice! 骰娘的话可以用同一套 <span>.gm</span> 指令：
+          <span>.gm 格斗</span>、<span>.gm格斗+2</span>（手动加值）、<span>.gm格斗5</span>（指定等级）、
+          <span>.gm驯兽/教育</span>（改判属性）、<span>.gmb 侦查</span> / <span>.gmp 侦查</span>（奖励投 / 惩罚投）、
+          <span>.gmsc 1/1d2</span>（理智检定）、<span>.gmsn</span>（卡摘要）、<span>.gmri</span>（先攻）。
+          发 <span>.gm help</span> 看完整列表。</div>
       </div>
     </el-dialog>
 <!--    <el-dialog title="发自定义消息" :visible.sync="sendCustomDialogVisible" width="30%">-->
