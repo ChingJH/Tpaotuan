@@ -285,6 +285,35 @@ check('新消息照常记录', (logEntry.collectNewLogEntries([newer], { g1: fak
 check('关掉日志时不记录',
     Object.keys(logEntry.collectNewLogEntries([groupMsg({ ID: 'm3', payload: { text: 'x' } })], { g1: { logs: [], logEnabled: false } }, LOG_TYPES)).length, 0)
 
+console.log('\n=== 人物卡导入：选对工作表 ===')
+const rulesMod = loadModule('src/rules/index.js')
+const filledWorkbook = (file, sheetName, edits) => {
+  const wb = XLSX.readFile(path.join(ROOT, 'public/static', file))
+  setCells(wb.Sheets[sheetName], edits)
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+  return XLSX.read(buf, { type: 'buffer' })
+}
+
+// 诡秘模板第一个 sheet 是「附表」，人物卡在「角色卡」——导入必须按这个名字挑
+const guimiWb = filledWorkbook('guimi-d20.xlsx', '角色卡', [
+  ['E3', '测试角色'], ['V4', 6], ['I27', 3]
+])
+const pickedGuimi = rulesMod.pickCardSheet(guimiWb, 'guimi-d20')
+check('挑到「角色卡」而不是第一个「附表」', pickedGuimi.name, '角色卡')
+check('按挑好的 sheet 解析出姓名', rulesMod.parseCard(pickedGuimi.sheet, 'guimi-d20').basic.name, '测试角色')
+check('自动识别这是诡秘卡', (rulesMod.detectCardRule(guimiWb) || {}).ruleId, 'guimi-d20')
+check('选错规则时返回 null（交给界面提示切换）', rulesMod.pickCardSheet(guimiWb, 'coc7'), null)
+
+// 空白模板：能选中工作表，但姓名是空的（界面要提示「填好再传」）
+const blankWb = XLSX.readFile(path.join(ROOT, 'public/static', 'guimi-d20.xlsx'))
+const pickedBlank = rulesMod.pickCardSheet(blankWb, 'guimi-d20')
+check('空白模板也选中「角色卡」', pickedBlank.name, '角色卡')
+check('空白模板没有姓名', rulesMod.parseCard(pickedBlank.sheet, 'guimi-d20').basic.name || '', '')
+
+// COC 模板第一个 sheet 就是「人物卡」，行为不变
+const cocWb = XLSX.readFile(path.join(ROOT, 'public/static', 'cocv7.xlsx'))
+check('COC 挑到「人物卡」', rulesMod.pickCardSheet(cocWb, 'coc7').name, '人物卡')
+
 console.log('')
 if (failed > 0) {
   console.log(`✗ 有 ${failed} 项断言失败`)

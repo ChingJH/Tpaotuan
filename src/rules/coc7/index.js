@@ -12,6 +12,8 @@ export default {
   template: './static/cocv7.xlsx',
   templateFileName: 'cocv7.xlsx',
   templateNote: 'COC七版人物卡v1.6.0',
+  // 人物卡在哪个 sheet
+  sheetNames: ['人物卡'],
   // 搜索用的拼音字典
   props: ALL_PROPS,
   skills: ALL_SKILLS,

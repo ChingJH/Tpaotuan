@@ -11,6 +11,8 @@ export default {
   template: './static/guimi-d20.xlsx',
   templateFileName: 'guimi-d20.xlsx',
   templateNote: '琉璃版诡秘规则角色卡 YM_v3.5.9.24',
+  // 人物卡在哪个 sheet：这张模板的第一个 sheet 是「附表」，卡在「角色卡」里
+  sheetNames: ['角色卡'],
   props: ATTR_PINYIN,
   skills: SKILL_PINYIN,
   levelBonus: LEVEL_BONUS,

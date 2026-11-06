@@ -66,9 +66,17 @@
   </div>
 </template>
 <script>
-import { loadXlsx, parseCard, RULE_LIST, getRule } from '@/sdk/card'
+import { loadXlsx, parseCard, RULE_LIST, getRule, pickCardSheet, detectCardRule } from '@/sdk/card'
 import { RULE_AUTO } from '@/rules'
 import { mapState } from 'vuex'
+
+// 带「友好提示」标记的错误：catch 里直接显示 message，不再套「格式不正确」那句模板
+const cardImportError = (message, code) => {
+  const error = new Error(message)
+  error.friendly = true
+  error.code = code
+  return error
+}
 
 export default {
   props: ['groupId', 'memberId', 'visible'],
@@ -144,10 +152,20 @@ export default {
           try {
             const data = new Uint8Array(evt.target.result)
             const workbook = window.XLSX.read(data, { type: 'array' })
-            const sheet = workbook.Sheets[workbook.SheetNames[0]]
-            const card = parseCard(sheet, this.ruleId)
+            // 诡秘模板的第一个 sheet 是「附表」，人物卡在「角色卡」里，
+            // 所以按规则声明的工作表名去挑，不能盲取第一个
+            const picked = pickCardSheet(workbook, this.ruleId)
+            if (!picked) {
+              const other = detectCardRule(workbook)
+              if (other && other.ruleId !== this.ruleId) {
+                const otherName = getRule(other.ruleId).shortName
+                throw cardImportError(`这张卡是${otherName}格式，请把上面的规则切成「${otherName}」再导入`, 'WRONG_RULE')
+              }
+              throw cardImportError(`导入失败：文件里没找到人物卡工作表（当前为${this.rule.shortName}）`, 'NO_SHEET')
+            }
+            const card = parseCard(picked.sheet, this.ruleId)
             if (!card || !card.basic || !card.basic.name) {
-              throw new Error('empty card')
+              throw cardImportError(`没读到姓名：这张卡里「${picked.name}」工作表没填姓名（空白模板导不进来，填好再传）`, 'NO_NAME')
             }
             this.user = card
           } catch (e) {
@@ -155,7 +173,9 @@ export default {
             this.user = null
             this.$store.commit('showMessage', {
               type: 'error',
-              message: `导入失败，可能是格式不正确或选错了规则（当前为${this.rule.shortName}）`
+              message: e && e.friendly
+                  ? e.message
+                  : `导入失败，可能是格式不正确或选错了规则（当前为${this.rule.shortName}）`
             })
           }
         })

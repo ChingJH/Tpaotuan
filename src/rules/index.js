@@ -39,3 +39,61 @@ export function resolveRuleId({ groupRule, cardRule } = {}) {
 export function parseCard(sheet, ruleId) {
   return getRule(ruleId).parse(sheet)
 }
+
+// 规则声明的那张 sheet（诡秘模板的第一个 sheet 是「附表」，卡在「角色卡」里，
+// 所以不能盲取 SheetNames[0]）
+const declaredSheet = (workbook, rule) => {
+  const names = (workbook && workbook.SheetNames) || []
+  for (const want of rule.sheetNames || []) {
+    const hit = names.find(name => String(name).trim() === want)
+    if (hit) return { name: hit, sheet: workbook.Sheets[hit] }
+  }
+  return null
+}
+
+// 从工作簿里挑出人物卡所在的 sheet
+// 1) 规则声明的工作表名
+// 2) 别的规则的工作表在、本规则的没在 → 大概率选错了规则，返回 null 交给界面提示
+// 3) 全都对不上（模板被整体改名）→ 挨个 sheet 试解析，谁能解析出姓名就用谁
+export function pickCardSheet(workbook, ruleId) {
+  const rule = getRule(ruleId)
+  const declared = declaredSheet(workbook, rule)
+  if (declared) return declared
+
+  const names = (workbook && workbook.SheetNames) || []
+  if (!names.length) return null
+  if (anyDeclaredSheet(workbook)) return null
+
+  for (const name of names) {
+    const card = safeParse(workbook.Sheets[name], ruleId)
+    if (card && card.basic && card.basic.name) return { name, sheet: workbook.Sheets[name] }
+  }
+  return { name: names[0], sheet: workbook.Sheets[names[0]] }
+}
+
+// 工作簿里有没有「某套规则声明过的工作表」
+function anyDeclaredSheet(workbook) {
+  const names = (workbook && workbook.SheetNames) || []
+  return RULE_LIST.some(rule =>
+    (rule.sheetNames || []).some(want => names.some(name => String(name).trim() === want)))
+}
+
+function safeParse(sheet, ruleId) {
+  try {
+    return parseCard(sheet, ruleId)
+  } catch (e) {
+    return null
+  }
+}
+
+// 用户可能选错了规则：拿每套规则声明的 sheet 试一遍，
+// 能解析出姓名的就是这张卡真正的格式
+export function detectCardRule(workbook) {
+  for (const rule of RULE_LIST) {
+    const declared = declaredSheet(workbook, rule)
+    if (!declared) continue
+    const card = safeParse(declared.sheet, rule.id)
+    if (card && card.basic && card.basic.name) return { ruleId: rule.id, sheetName: declared.name }
+  }
+  return null
+}
