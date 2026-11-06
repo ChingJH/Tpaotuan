@@ -108,3 +108,30 @@ export function buildLogEntry(msg, types, options = {}) {
 
   return null
 }
+
+// 同一条消息会被多条路喂进来（收到消息 / 发送成功 / 进会话列表），
+// 它们拿的是同一个 message 对象，记下来，第二次直接跳过
+const loggedMessages = new WeakSet()
+
+// 从一批消息里挑出真正要写进日志的条目，按群分组
+// gamesById：groupId => game 对象（需要 logs / logEnabled）
+// 返回 { groupId: [entry, ...] }
+export function collectNewLogEntries(msglist, gamesById, types, options = {}) {
+  const byGroup = {}
+  if (!msglist || !msglist.length) return byGroup
+  msglist.forEach(msg => {
+    if (!msg) return
+    const game = gamesById[msg.to]
+    if (!game || !game.logEnabled) return
+    if (loggedMessages.has(msg)) return
+    const entry = buildLogEntry(msg, types, options)
+    if (!entry) return
+    // 翻历史消息会重新拿到新对象，但 ID 一样，按 ID 再去一次
+    if ((game.logs || []).some(log => log.id === entry.id)) return
+    const pending = byGroup[msg.to] || []
+    if (pending.some(log => log.id === entry.id)) return
+    byGroup[msg.to] = pending.concat(entry)
+    loggedMessages.add(msg)
+  })
+  return byGroup
+}

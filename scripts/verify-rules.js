@@ -247,7 +247,7 @@ const LOG_TYPES = {
   high: 'High'
 }
 const groupMsg = (extra) => ({
-  ID: 'm1', conversationType: 'GROUP', type: 'TIMTextElem', from: 'u1', nick: '张三', time: 100, ...extra
+  ID: 'm1', to: 'g1', conversationType: 'GROUP', type: 'TIMTextElem', from: 'u1', nick: '张三', time: 100, ...extra
 })
 check('玩家发言', logEntry.buildLogEntry(groupMsg({ payload: { text: '我推门' } }), LOG_TYPES),
     { id: 'm1', from: 'u1', nick: '张三', time: 100, content: '我推门', kind: 'player' })
@@ -268,6 +268,22 @@ check('自己发的消息补昵称', logEntry.buildLogEntry(
     groupMsg({ from: '', nick: '', flow: 'out', payload: { text: '我搜抽屉' } }),
     LOG_TYPES, { selfFrom: 'me', selfNick: '主持人' }),
     { id: 'm1', from: 'me', nick: '主持人', time: 100, content: '我搜抽屉', kind: 'player' })
+
+// 去重：同一条消息会从「进会话列表」「发送成功」「收到消息」多条路喂进来
+const fakeGame = { logs: [], logEnabled: true }
+const m1 = groupMsg({ payload: { text: '我推门' } })
+const first = logEntry.collectNewLogEntries([m1], { g1: fakeGame }, LOG_TYPES)
+check('首次记录成功', (first.g1 || []).length, 1)
+fakeGame.logs = fakeGame.logs.concat(first.g1 || []) // 模拟 appendLogs
+const second = logEntry.collectNewLogEntries([m1], { g1: fakeGame }, LOG_TYPES)
+check('同一条消息第二次不重复记', Object.keys(second).length, 0)
+const sameIdMsg = groupMsg({ id: 'z9', ID: 'm1', payload: { text: '我推门' } })
+check('翻历史拿到的新对象按 id 去重',
+    Object.keys(logEntry.collectNewLogEntries([sameIdMsg], { g1: fakeGame }, LOG_TYPES)).length, 0)
+const newer = groupMsg({ ID: 'm2', payload: { text: '我抬手' } })
+check('新消息照常记录', (logEntry.collectNewLogEntries([newer], { g1: fakeGame }, LOG_TYPES).g1 || []).length, 1)
+check('关掉日志时不记录',
+    Object.keys(logEntry.collectNewLogEntries([groupMsg({ ID: 'm3', payload: { text: 'x' } })], { g1: { logs: [], logEnabled: false } }, LOG_TYPES)).length, 0)
 
 console.log('')
 if (failed > 0) {

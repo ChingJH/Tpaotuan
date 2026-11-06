@@ -2,7 +2,7 @@ import Vue from 'vue'
 import { enableBot, disableBot } from 'tim'
 import TIM from '@/sdk'
 import { isRuleSetting, RULE_AUTO } from '@/rules'
-import { buildLogEntry } from '@/utils/log-entry'
+import { buildLogEntry, collectNewLogEntries } from '@/utils/log-entry'
 
 const gamePrototype = {
   // 本团的骰子规则：auto（按每个人的人物卡） / coc7 / guimi-d20，群设置里可切换
@@ -201,17 +201,8 @@ const game = {
         custom: TIM.TYPES.MSG_CUSTOM,
         high: TIM.TYPES.MSG_PRIORITY_HIGH
       }
-      const byGroup = {}
-      msglist.forEach(msg => {
-        const game = context.state.list[msg.to]
-        if (!game || !game.logEnabled) return
-        const entry = buildLogEntry(msg, types, options)
-        if (!entry) return
-        if (game.logs.some(log => log.id === entry.id)) return // 翻历史消息时会重复收到
-        const pending = byGroup[msg.to] || []
-        if (pending.some(log => log.id === entry.id)) return
-        byGroup[msg.to] = pending.concat(entry)
-      })
+      // 去重逻辑在 collectNewLogEntries 里（同一条消息会从多条路喂进来）
+      const byGroup = collectNewLogEntries(msglist, context.state.list, types, options)
       Object.keys(byGroup).forEach(groupId => {
         context.commit('appendLogs', { groupId, logs: byGroup[groupId] })
       })

@@ -430,3 +430,33 @@ Emoji 与颜文字都是纯文本，选完直接进输入框，跟 TIM 表情可
 ### 5. 验证
 
 `npm run test:rules` 新增 16 条断言（日志 13 + 属性生成 3），全部通过；`npm run build` 干净。
+
+---
+
+## 追加：日志重复 & JSON 导出排版
+
+### 1. 日志一条记两遍
+
+原因：自己发的消息有两条路都会写日志——
+
+- `message-send-box.vue` 的 `_sendMessage()`：发送成功后 `dispatch insertGameLogs`（原项目就有）
+- 上一版加的 `store.subscribe(pushCurrentMessageList)`：消息进会话列表时又记一次
+
+两条路拿到的是**同一个 message 对象**，所以改了去重方式：
+
+- `src/utils/log-entry.js` 新增 `collectNewLogEntries()`，用模块级 `WeakSet` 记住已经写过的消息对象，第二次直接跳过
+- 翻历史消息／重进群拿到的是**新对象但同 ID**，继续按 ID 去重
+- 不再用「内容+时间窗」判重（会误杀玩家短时间内发两遍同样的话）
+
+### 2. 导出 JSON 挤成一横排
+
+`exportJson()` 原来是 `JSON.stringify(logs)`，没有缩进。现在：
+
+- `JSON.stringify(data, null, 2)` —— 两格缩进，分行排版
+- 顶层带元信息：`group` / `groupID` / `exportedAt` / `count` / `logs`
+- MIME 改成 `application/json`（原来是 `json/plain`）
+- 文件名带时间：`log-20261106-1405.json`（TXT/HTML 同样）
+
+### 3. 顺带
+
+`scripts/verify-rules.js` 的日志断言从 13 条加到 17 条，覆盖「同一条消息喂两次只记一条」「历史消息按 ID 去重」「新消息照常记」「关日志不记」。

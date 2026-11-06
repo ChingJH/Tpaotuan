@@ -137,14 +137,31 @@ export default {
       this.download('html', result)
     },
     exportJson() {
-      this.download('json', JSON.stringify(this.currentGame.logs))
+      const logs = this.currentGame.logs || []
+      const data = {
+        group: this.groupProfile.name,
+        groupID: this.groupProfile.groupID,
+        exportedAt: new Date().toISOString(),
+        count: logs.length,
+        logs
+      }
+      // 缩进 2 格，导出来是分行排版的，别挤成一横排
+      this.download('json', JSON.stringify(data, null, 2))
+    },
+    // 导出的文件名：log-20260905-2130.txt
+    fileName(type) {
+      const now = new Date()
+      const pad = (n) => String(n).padStart(2, '0')
+      const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+      return `log-${stamp}.${type === 'text' ? 'txt' : type}`
     },
     // 将字符串作为文件下载
     // type: text/html/json
     download(type, text) {
+      const mime = { text: 'text/plain', html: 'text/html', json: 'application/json' }[type] || 'text/plain'
       const element = document.createElement('a')
-      element.setAttribute('href', `data:${type}/plain;charset=utf-8,` + encodeURIComponent(text))
-      element.setAttribute('download', `log.${type === 'text' ? 'txt' : type}`)
+      element.setAttribute('href', `data:${mime};charset=utf-8,` + encodeURIComponent(text))
+      element.setAttribute('download', this.fileName(type))
       element.style.display = 'none'
       document.body.appendChild(element)
       element.click()
